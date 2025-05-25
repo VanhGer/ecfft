@@ -187,94 +187,94 @@ pub mod secp256k1 {
     }
 }
 
-pub mod m31 {
-    use super::FFTree;
-    use super::FftreeField;
-    use super::Point;
-    use crate::ec::build_ec_fftree;
-    use crate::ec::ShortWeierstrassCurve;
-    pub use ark_ff_optimized::fp31::Fp;
+// pub mod m31 {
+//     use super::FFTree;
+//     use super::FftreeField;
+//     use super::Point;
+//     use crate::ec::build_ec_fftree;
+//     use crate::ec::ShortWeierstrassCurve;
+//     pub use ark_ff_optimized::fp31::Fp;
 
-    impl FftreeField for Fp {
-        fn build_fftree(n: usize) -> Option<FFTree<Fp>> {
-            /// Supersingular curve with 2^31 | #E
-            const CURVE: ShortWeierstrassCurve<Fp> = ShortWeierstrassCurve::new(Fp(1), Fp(0));
-            const COSET_OFFSET: Point<ShortWeierstrassCurve<Fp>> =
-                Point::new(Fp(1048755163), Fp(279503108), CURVE);
-            const SUBGROUP_GENERATOR: Point<ShortWeierstrassCurve<Fp>> =
-                Point::new(Fp(1273083559), Fp(804329170), CURVE);
-            const SUBGORUP_TWO_ADDICITY: u32 = 28;
+//     impl FftreeField for Fp {
+//         fn build_fftree(n: usize) -> Option<FFTree<Fp>> {
+//             /// Supersingular curve with 2^31 | #E
+//             const CURVE: ShortWeierstrassCurve<Fp> = ShortWeierstrassCurve::new(Fp(1), Fp(0));
+//             const COSET_OFFSET: Point<ShortWeierstrassCurve<Fp>> =
+//                 Point::new(Fp(1048755163), Fp(279503108), CURVE);
+//             const SUBGROUP_GENERATOR: Point<ShortWeierstrassCurve<Fp>> =
+//                 Point::new(Fp(1273083559), Fp(804329170), CURVE);
+//             const SUBGORUP_TWO_ADDICITY: u32 = 28;
 
-            build_ec_fftree(
-                SUBGROUP_GENERATOR,
-                1 << SUBGORUP_TWO_ADDICITY,
-                COSET_OFFSET,
-                n,
-            )
-        }
-    }
+//             build_ec_fftree(
+//                 SUBGROUP_GENERATOR,
+//                 1 << SUBGORUP_TWO_ADDICITY,
+//                 COSET_OFFSET,
+//                 n,
+//             )
+//         }
+//     }
 
-    // TODO: there's a lot of repetition between field tests. Should implement macro
-    // or loop at solutions to remove duplication of test logic.
-    #[cfg(test)]
-    mod tests {
-        use super::Fp;
-        use crate::fftree::FFTree;
-        use crate::FftreeField;
-        use ark_ff::One;
-        use ark_ff::Zero;
-        use ark_poly::univariate::DensePolynomial;
-        use ark_poly::DenseUVPolynomial;
-        use ark_poly::Polynomial;
-        use rand::rngs::StdRng;
-        use rand::SeedableRng;
-        use std::sync::OnceLock;
+//     // TODO: there's a lot of repetition between field tests. Should implement macro
+//     // or loop at solutions to remove duplication of test logic.
+//     #[cfg(test)]
+//     mod tests {
+//         use super::Fp;
+//         use crate::fftree::FFTree;
+//         use crate::FftreeField;
+//         use ark_ff::One;
+//         use ark_ff::Zero;
+//         use ark_poly::univariate::DensePolynomial;
+//         use ark_poly::DenseUVPolynomial;
+//         use ark_poly::Polynomial;
+//         use rand::rngs::StdRng;
+//         use rand::SeedableRng;
+//         use std::sync::OnceLock;
 
-        static FFTREE: OnceLock<FFTree<Fp>> = OnceLock::new();
+//         static FFTREE: OnceLock<FFTree<Fp>> = OnceLock::new();
 
-        fn get_fftree() -> &'static FFTree<Fp> {
-            FFTREE.get_or_init(|| Fp::build_fftree(64).unwrap())
-        }
+//         fn get_fftree() -> &'static FFTree<Fp> {
+//             FFTREE.get_or_init(|| Fp::build_fftree(64).unwrap())
+//         }
 
-        #[test]
-        fn evaluates_polynomial() {
-            let n = 64;
-            let fftree = get_fftree();
-            let mut rng = StdRng::from_seed([1; 32]);
-            let poly = DensePolynomial::rand(n - 1, &mut rng);
-            let eval_domain = fftree.subtree_with_size(n).eval_domain();
+//         #[test]
+//         fn evaluates_polynomial() {
+//             let n = 64;
+//             let fftree = get_fftree();
+//             let mut rng = StdRng::from_seed([1; 32]);
+//             let poly = DensePolynomial::rand(n - 1, &mut rng);
+//             let eval_domain = fftree.subtree_with_size(n).eval_domain();
 
-            let ecfft_evals = fftree.enter(&poly);
+//             let ecfft_evals = fftree.enter(&poly);
 
-            let expected_evals: Vec<Fp> = eval_domain.iter().map(|x| poly.evaluate(x)).collect();
-            assert_eq!(expected_evals, ecfft_evals);
-        }
+//             let expected_evals: Vec<Fp> = eval_domain.iter().map(|x| poly.evaluate(x)).collect();
+//             assert_eq!(expected_evals, ecfft_evals);
+//         }
 
-        #[test]
-        fn interpolates_evaluations() {
-            let fftree = get_fftree();
-            let one = Fp::one();
-            let zero = Fp::zero();
-            let coeffs: &[Fp] = &[one, one, Fp::from(5u8), zero, zero, one, zero, zero];
-            let evals = fftree.enter(coeffs);
+//         #[test]
+//         fn interpolates_evaluations() {
+//             let fftree = get_fftree();
+//             let one = Fp::one();
+//             let zero = Fp::zero();
+//             let coeffs: &[Fp] = &[one, one, Fp::from(5u8), zero, zero, one, zero, zero];
+//             let evals = fftree.enter(coeffs);
 
-            let exit_coeffs = fftree.exit(&evals);
+//             let exit_coeffs = fftree.exit(&evals);
 
-            assert_eq!(coeffs, &exit_coeffs);
-        }
+//             assert_eq!(coeffs, &exit_coeffs);
+//         }
 
-        #[test]
-        fn determines_degree() {
-            let fftree = get_fftree();
-            let one = Fp::one();
-            let zero = Fp::zero();
-            let coeffs = &[one, one, one, zero, zero, one, zero, zero];
-            let evals = fftree.enter(coeffs);
+//         #[test]
+//         fn determines_degree() {
+//             let fftree = get_fftree();
+//             let one = Fp::one();
+//             let zero = Fp::zero();
+//             let coeffs = &[one, one, one, zero, zero, one, zero, zero];
+//             let evals = fftree.enter(coeffs);
 
-            let degree = fftree.degree(&evals);
+//             let degree = fftree.degree(&evals);
 
-            let poly = DensePolynomial::from_coefficients_slice(coeffs);
-            assert_eq!(poly.degree(), degree);
-        }
-    }
-}
+//             let poly = DensePolynomial::from_coefficients_slice(coeffs);
+//             assert_eq!(poly.degree(), degree);
+//         }
+//     }
+// }

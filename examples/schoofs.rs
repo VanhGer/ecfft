@@ -5,7 +5,7 @@ use ark_poly::univariate::DensePolynomial;
 use ark_poly::DenseUVPolynomial;
 use ark_poly::Polynomial;
 use ecfft::ec::ShortWeierstrassCurve;
-use ecfft::m31::Fp;
+// use ecfft::m31::Fp;
 // use ecfft::secp256k1::Fp;
 use ecfft::utils::div_rem;
 use ecfft::utils::gcd;
@@ -19,8 +19,8 @@ use std::ops::Add;
 use std::ops::Mul;
 
 fn main() {
-    let curve = ShortWeierstrassCurve::new(Fp::from(8), Fp::from(81));
-    println!("Cardinality is: {}", cardinality(curve));
+    //let curve = ShortWeierstrassCurve::new(Fp::from(8), Fp::from(81));
+    //println!("Cardinality is: {}", cardinality(curve));
 }
 
 /// Returns the cardinality of a curve using Schoofs Algorithm

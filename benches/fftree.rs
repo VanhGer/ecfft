@@ -4,7 +4,7 @@ use criterion::criterion_group;
 use criterion::criterion_main;
 use criterion::BenchmarkId;
 use criterion::Criterion;
-use ecfft::m31;
+// use ecfft::m31;
 use ecfft::secp256k1;
 use ecfft::FFTree;
 use ecfft::FftreeField;
@@ -109,12 +109,12 @@ fn bench_fftree<F: FftreeField>(c: &mut Criterion, field_description: &str) {
 }
 
 fn ecfft_algorithm_benches(c: &mut Criterion) {
-    bench_ecfft_algorithms::<m31::Fp>(c, FIELD_DESCRIPTION_M31);
+    //bench_ecfft_algorithms::<m31::Fp>(c, FIELD_DESCRIPTION_M31);
     bench_ecfft_algorithms::<secp256k1::Fp>(c, FIELD_DESCRIPTION_SECP256K1);
 }
 
 fn fftree_benches(c: &mut Criterion) {
-    bench_fftree::<m31::Fp>(c, FIELD_DESCRIPTION_M31);
+    //bench_fftree::<m31::Fp>(c, FIELD_DESCRIPTION_M31);
     bench_fftree::<secp256k1::Fp>(c, FIELD_DESCRIPTION_SECP256K1);
 }
 

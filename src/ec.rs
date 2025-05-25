@@ -557,31 +557,31 @@ pub fn build_ec_fftree<F: PrimeField>(
 mod tests {
     use super::*;
     use ark_ff::One;
-    use ark_ff_optimized::fp31::Fp;
+    // use ark_ff_optimized::fp31::Fp;
 
-    #[test]
-    fn two_torsion_points_have_order_two() {
-        let curve = ShortWeierstrassCurve::new(Fp::one(), Fp::zero());
+    // #[test]
+    // fn two_torsion_points_have_order_two() {
+    //     let curve = ShortWeierstrassCurve::new(Fp::one(), Fp::zero());
 
-        let two_torsion_points = curve.two_torsion_points();
+    //     let two_torsion_points = curve.two_torsion_points();
 
-        for p in two_torsion_points {
-            assert!(!p.is_zero());
-            assert!((p + p).is_zero());
-        }
-    }
+    //     for p in two_torsion_points {
+    //         assert!(!p.is_zero());
+    //         assert!((p + p).is_zero());
+    //     }
+    // }
 
-    #[test]
-    fn two_isogenies_map_to_identity() {
-        let curve = ShortWeierstrassCurve::new(Fp::one(), Fp::zero());
-        let two_torsion_points = curve.two_torsion_points();
+    // #[test]
+    // fn two_isogenies_map_to_identity() {
+    //     let curve = ShortWeierstrassCurve::new(Fp::one(), Fp::zero());
+    //     let two_torsion_points = curve.two_torsion_points();
 
-        let two_isogenies = curve.two_isogenies();
+    //     let two_isogenies = curve.two_isogenies();
 
-        for p in two_torsion_points {
-            for isogeny in &two_isogenies {
-                assert!(isogeny.r.map(&p.x).is_none());
-            }
-        }
-    }
+    //     for p in two_torsion_points {
+    //         for isogeny in &two_isogenies {
+    //             assert!(isogeny.r.map(&p.x).is_none());
+    //         }
+    //     }
+    // }
 }

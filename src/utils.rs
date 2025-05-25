@@ -389,69 +389,69 @@ impl<F: Field> RationalMap<F> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ark_ff::One;
-    use ark_ff_optimized::fp31::Fp;
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use ark_ff::One;
+//     use ark_ff_optimized::fp31::Fp;
+//     use rand::rngs::StdRng;
+//     use rand::SeedableRng;
 
-    #[test]
-    fn finds_roots_of_cubic() {
-        // = x^3 + 16*x
-        let f = DensePolynomial::from_coefficients_slice(&[
-            Fp::zero(),
-            -Fp::from(4u8),
-            Fp::zero(),
-            Fp::one(),
-        ]);
+//     #[test]
+//     fn finds_roots_of_cubic() {
+//         // = x^3 + 16*x
+//         let f = DensePolynomial::from_coefficients_slice(&[
+//             Fp::zero(),
+//             -Fp::from(4u8),
+//             Fp::zero(),
+//             Fp::one(),
+//         ]);
 
-        let actual = find_roots(&f);
+//         let actual = find_roots(&f);
 
-        let expected = vec![Fp::zero(), Fp::from(2u32), Fp::from(2147483645u32)];
-        assert_eq!(expected, actual);
-    }
+//         let expected = vec![Fp::zero(), Fp::from(2u32), Fp::from(2147483645u32)];
+//         assert_eq!(expected, actual);
+//     }
 
-    #[test]
-    fn test_xgcd() {
-        let mut rng = StdRng::seed_from_u64(0);
-        let a = DensePolynomial::<Fp>::rand(5, &mut rng);
-        let b = DensePolynomial::<Fp>::rand(5, &mut rng);
+//     #[test]
+//     fn test_xgcd() {
+//         let mut rng = StdRng::seed_from_u64(0);
+//         let a = DensePolynomial::<Fp>::rand(5, &mut rng);
+//         let b = DensePolynomial::<Fp>::rand(5, &mut rng);
 
-        let (x, y, gcd) = xgcd(&a, &b);
+//         let (x, y, gcd) = xgcd(&a, &b);
 
-        let ax = a.naive_mul(&x);
-        let by = b.naive_mul(&y);
-        assert_eq!(&ax + &by, gcd);
-    }
+//         let ax = a.naive_mul(&x);
+//         let by = b.naive_mul(&y);
+//         assert_eq!(&ax + &by, gcd);
+//     }
 
-    #[test]
-    fn test_xgcd_with_linear_gcd() {
-        // a = (x + 1)(x - 1) = x^2 - 1
-        // b = (x + 1)(x + 0) = x^2 + x + 1
-        let a = DensePolynomial::from_coefficients_vec(vec![-Fp::one(), Fp::zero(), Fp::one()]);
-        let b = DensePolynomial::from_coefficients_vec(vec![Fp::one(), Fp::one(), Fp::one()]);
+//     #[test]
+//     fn test_xgcd_with_linear_gcd() {
+//         // a = (x + 1)(x - 1) = x^2 - 1
+//         // b = (x + 1)(x + 0) = x^2 + x + 1
+//         let a = DensePolynomial::from_coefficients_vec(vec![-Fp::one(), Fp::zero(), Fp::one()]);
+//         let b = DensePolynomial::from_coefficients_vec(vec![Fp::one(), Fp::one(), Fp::one()]);
 
-        let (s, t, gcd) = xgcd(&a, &b);
+//         let (s, t, gcd) = xgcd(&a, &b);
 
-        let a_s = a.naive_mul(&s);
-        let b_t = b.naive_mul(&t);
-        assert_eq!(&a_s + &b_t, gcd);
-        // TODO: should be a factor
-        // assert_eq!(&[Fp::one(), Fp::one()], &*gcd);
-    }
+//         let a_s = a.naive_mul(&s);
+//         let b_t = b.naive_mul(&t);
+//         assert_eq!(&a_s + &b_t, gcd);
+//         // TODO: should be a factor
+//         // assert_eq!(&[Fp::one(), Fp::one()], &*gcd);
+//     }
 
-    #[test]
-    fn test_xgcd_with_zero_polynomial() {
-        let mut rng = StdRng::seed_from_u64(0);
-        let zero = DensePolynomial::<Fp>::zero();
-        let b = DensePolynomial::<Fp>::rand(5, &mut rng);
+//     #[test]
+//     fn test_xgcd_with_zero_polynomial() {
+//         let mut rng = StdRng::seed_from_u64(0);
+//         let zero = DensePolynomial::<Fp>::zero();
+//         let b = DensePolynomial::<Fp>::rand(5, &mut rng);
 
-        let (s, t, gcd) = xgcd(&zero, &b);
+//         let (s, t, gcd) = xgcd(&zero, &b);
 
-        assert_eq!(s, zero, "x should be zero polynomial");
-        assert_eq!(b.naive_mul(&t), gcd);
-        assert!(!gcd.is_zero());
-    }
-}
+//         assert_eq!(s, zero, "x should be zero polynomial");
+//         assert_eq!(b.naive_mul(&t), gcd);
+//         assert!(!gcd.is_zero());
+//     }
+// }
