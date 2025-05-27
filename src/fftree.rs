@@ -379,12 +379,12 @@ impl<F: Field> FFTree<F> {
         println!("from_tree C");
         // Precompute eval table <X^(n/2) ≀ S>
         // TODO: compute xnn from xnnnn for n != 2
-        let xnnnn_s: Vec<F> = f_layers[0].iter().map(|x| x.pow([nnnn])).collect();
+        let xnnnn_s: Vec<F> = f_layers[0].par_iter().map(|x| x.pow([nnnn])).collect();
         println!("from_tree D");
         let mut xnnnn_s_inv = xnnnn_s.clone();
         batch_inversion(&mut xnnnn_s_inv);
         println!("from_tree E");
-        let xnn_s: Vec<F> = f_layers[0].iter().map(|x| x.pow([nn])).collect();
+        let xnn_s: Vec<F> = f_layers[0].par_iter().map(|x| x.pow([nn])).collect();
         println!("from_tree F");
         let mut xnn_s_inv = xnn_s.clone();
         batch_inversion(&mut xnn_s_inv);
@@ -488,43 +488,84 @@ impl<F: Field> FFTree<F> {
         match n.cmp(&2) {
             Ordering::Greater => {
                 println!("from_tree N00");
-                // compute z0z0_rem_xnn_s in O(n log n)
+                
+                // Compute z0z0_rem_xnn_s in O(n log n)
                 let st = tree.subtree.as_ref().unwrap();
-                let z0_rem_xnnnn_sq_s0 = zip(&st.z0z0_rem_xnn_s, &st.z1z1_rem_xnn_s)
-                    .map(|(y0, y1)| *y0 * y1)
-                    .collect::<Vec<F>>();
-                let z0z0_rem_xnnnn_s0 =
+                
+                // Parallel element-wise multiplication
+                let z0_rem_xnnnn_sq_s0: Vec<F> = st.z0z0_rem_xnn_s
+                    .par_iter()
+                    .zip(st.z1z1_rem_xnn_s.par_iter())
+                    .map(|(y0, y1)| *y0 * *y1)
+                    .collect();
+                
+                let z0z0_rem_xnnnn_s0 = 
                     st.modular_reduce(&z0_rem_xnnnn_sq_s0, &st.xnn_s, &st.z0z0_rem_xnn_s);
+                
                 println!("from_tree N01");
+                
                 let z0z0_rem_xnnnn_s1 = tree.extend(&z0z0_rem_xnnnn_s0, Moiety::S1);
-                let z0z0_rem_xnnnn_s = zip(z0z0_rem_xnnnn_s0, z0z0_rem_xnnnn_s1)
-                    .flat_map(|(y0, y1)| [y0, y1])
-                    .collect::<Vec<F>>();
-                let z0_s = tree.z0_s1.iter().flat_map(|&y1| [F::zero(), y1]);
-                let z0_rem_xnn_s = zip(z0_s, &tree.xnn_s).map(|(z0, xnn)| z0 - xnn);
-                let z0_rem_xnn_sq_s = z0_rem_xnn_s.map(|y| y.square()).collect::<Vec<F>>();
+                
+                // Parallel interleaving
+                let z0z0_rem_xnnnn_s: Vec<F> = z0z0_rem_xnnnn_s0
+                    .par_iter()
+                    .zip(z0z0_rem_xnnnn_s1.par_iter())
+                    .flat_map(|(y0, y1)| [*y0, *y1])
+                    .collect();
+                
+                // Create z0_s in parallel - using chunked approach for better performance
+                let z0_s: Vec<F> = tree.z0_s1
+                    .par_iter()
+                    .flat_map(|&y1| [F::zero(), y1])
+                    .collect();
+                
+                // Parallel subtraction and squaring pipeline
+                let z0_rem_xnn_sq_s: Vec<F> = z0_s
+                    .par_iter()
+                    .zip(tree.xnn_s.par_iter())
+                    .map(|(z0, xnn)| (*z0 - *xnn).square())
+                    .collect();
+                
                 println!("from_tree N02");
-                let z0_rem_xnn_sq_div_xnnnn_s =
-                    zip(&z0_rem_xnn_sq_s, zip(&z0z0_rem_xnnnn_s, &xnnnn_s_inv))
-                        .map(|(z0_rem_xnn_sq, (z0z0_rem_xnnnn, xnnnn_inv))| {
-                            (*z0_rem_xnn_sq - z0z0_rem_xnnnn) * xnnnn_inv
-                        })
-                        .collect::<Vec<F>>();
-                let z0z0_div_xnnnn_rem_xnnnn_s =
+                
+                // Parallel complex computation combining multiple operations
+                let z0_rem_xnn_sq_div_xnnnn_s: Vec<F> = z0_rem_xnn_sq_s
+                    .par_iter()
+                    .zip(z0z0_rem_xnnnn_s.par_iter().zip(xnnnn_s_inv.par_iter()))
+                    .map(|(z0_rem_xnn_sq, (z0z0_rem_xnnnn, xnnnn_inv))| {
+                        (*z0_rem_xnn_sq - *z0z0_rem_xnnnn) * *xnnnn_inv
+                    })
+                    .collect();
+                
+                let z0z0_div_xnnnn_rem_xnnnn_s = 
                     tree.modular_reduce(&z0_rem_xnn_sq_div_xnnnn_s, &xnnnn_s, &z0z0_rem_xnnnn_s);
+                
                 println!("from_tree N03");
-                tree.z0z0_rem_xnn_s =
-                    zip(z0z0_rem_xnnnn_s, zip(z0z0_div_xnnnn_rem_xnnnn_s, xnnnn_s))
-                        .map(|(z0z0_rem_xnnnn, (z0z0_div_xnnnn_rem_xnnnn, xnnnn))| {
-                            z0z0_rem_xnnnn + xnnnn * z0z0_div_xnnnn_rem_xnnnn
-                        })
-                        .collect();
-
-                // compute z1z1_rem_xnn_s in O(n log n)
-                let z1_s = tree.z1_s0.iter().flat_map(|&y0| [y0, F::zero()]);
-                let z1_rem_xnn_s = zip(z1_s, &tree.xnn_s).map(|(z1, xnn)| z1 - xnn);
-                let z1z1 = z1_rem_xnn_s.map(|y| y.square()).collect::<Vec<F>>();
+                
+                // Parallel final computation for z0z0_rem_xnn_s
+                tree.z0z0_rem_xnn_s = z0z0_rem_xnnnn_s
+                    .par_iter()
+                    .zip(z0z0_div_xnnnn_rem_xnnnn_s.par_iter().zip(xnnnn_s.par_iter()))
+                    .map(|(z0z0_rem_xnnnn, (z0z0_div_xnnnn_rem_xnnnn, xnnnn))| {
+                        *z0z0_rem_xnnnn + *xnnnn * *z0z0_div_xnnnn_rem_xnnnn
+                    })
+                    .collect();
+                
+                // Compute z1z1_rem_xnn_s in O(n log n) - parallelized
+                let z1_s: Vec<F> = tree.z1_s0
+                    .par_iter()
+                    .flat_map(|&y0| [y0, F::zero()])
+                    .collect();
+                
+                // Parallel pipeline for z1 computation
+                let z1z1: Vec<F> = z1_s
+                    .par_iter()
+                    .zip(tree.xnn_s.par_iter())
+                    .map(|(z1, xnn)| (*z1 - *xnn).square())
+                    .collect();
+                
                 tree.z1z1_rem_xnn_s = tree.modular_reduce(&z1z1, &tree.xnn_s, &tree.z0z0_rem_xnn_s);
+                
                 println!("from_tree N04");
             }
             Ordering::Equal => {
