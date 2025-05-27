@@ -11,6 +11,9 @@ use ark_serialize::CanonicalDeserialize;
 use ark_serialize::CanonicalSerialize;
 use ark_serialize::Compress;
 use ark_serialize::Valid;
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelRefMutIterator;
+use rayon::iter::ParallelIterator;
 use core::cmp::Ordering;
 use core::iter::zip;
 
@@ -52,19 +55,22 @@ impl<F: Field> FFTree<F> {
 
         // generate internal nodes
         // TODO: would be cool to use array_windows_mut
+        println!("new A");
         let mut f_layers = f.get_layers_mut();
         for (i, rational_map) in rational_maps.iter().enumerate() {
             let (prev_layer, layer) = {
                 let (prev_layers, layers) = f_layers.split_at_mut(i + 1);
                 (prev_layers.last_mut().unwrap(), layers.first_mut().unwrap())
             };
-
             let layer_size = layer.len();
-            for (i, s) in layer.iter_mut().enumerate() {
-                *s = rational_map.map(&prev_layer[i]).unwrap();
-                debug_assert_eq!(*s, rational_map.map(&prev_layer[i + layer_size]).unwrap());
-            }
+
+            // Parallelized version using par_iter_mut with enumerate
+            layer.par_iter_mut().enumerate().for_each(|(j, s)| {
+                *s = rational_map.map(&prev_layer[j]).unwrap();
+                debug_assert_eq!(*s, rational_map.map(&prev_layer[j + layer_size]).unwrap());
+            });
         }
+        println!("new B");
 
         Self::from_tree(f, rational_maps)
     }
@@ -316,24 +322,32 @@ impl<F: Field> FFTree<F> {
     }
 
     fn from_tree(f: BinaryTree<F>, rational_maps: Vec<RationalMap<F>>) -> Self {
+        println!("from_tree A");
         let subtree = Self::derive_subtree(&f, &rational_maps).map(Box::new);
+        println!("from_tree B");
         let f_layers = f.get_layers();
         let n = f.leaves().len();
         let nn = n as u64 / 2;
         let nnnn = n as u64 / 4;
         let s = f_layers[0];
 
+        println!("from_tree C");
         // Precompute eval table <X^(n/2) ≀ S>
         // TODO: compute xnn from xnnnn for n != 2
         let xnnnn_s: Vec<F> = f_layers[0].iter().map(|x| x.pow([nnnn])).collect();
+        println!("from_tree D");
         let mut xnnnn_s_inv = xnnnn_s.clone();
         batch_inversion(&mut xnnnn_s_inv);
+        println!("from_tree E");
         let xnn_s: Vec<F> = f_layers[0].iter().map(|x| x.pow([nn])).collect();
+        println!("from_tree F");
         let mut xnn_s_inv = xnn_s.clone();
         batch_inversion(&mut xnn_s_inv);
+        println!("from_tree G");
 
         // Split S into its two moieties S0 and S1
         let (s0, s1): (Vec<F>, Vec<F>) = s.chunks_exact(2).map(|s| (s[0], s[1])).unzip();
+        println!("from_tree H");
 
         // Generate polynomial decomposition matrices
         // Lemma 3.2 (M_t) https://arxiv.org/abs/2107.08473
@@ -342,6 +356,7 @@ impl<F: Field> FFTree<F> {
         let mut decompose_matrices = BinaryTree::from(vec![Mat2x2::identity(); n]);
         let recombine_layers = recombine_matrices.get_layers_mut();
         let decompose_layers = decompose_matrices.get_layers_mut();
+        println!("from_tree I");
         for ((recombine_layer, decompose_layer), (l, map)) in zip(
             zip(recombine_layers, decompose_layers),
             zip(f_layers, &rational_maps),
@@ -351,6 +366,7 @@ impl<F: Field> FFTree<F> {
                 continue;
             }
 
+            println!("from_tree J_");
             let v = &map.denominator;
             for (i, (rmat, dmat)) in zip(recombine_layer, decompose_layer).enumerate() {
                 let s0 = l[i];
@@ -361,6 +377,7 @@ impl<F: Field> FFTree<F> {
                 *dmat = rmat.inverse().unwrap();
             }
         }
+        println!("from_tree K");
 
         let mut tree = Self {
             f,
