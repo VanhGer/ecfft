@@ -319,8 +319,12 @@ impl<F: Field> FFTree<F> {
     /// Runtime `O(n log^2 n)`. `vanishi_domain = [a_0, a_1, ..., a_(n - 1)]`
     /// Section 7.1 https://arxiv.org/pdf/2107.08473.pdf
     pub fn vanish(&self, vanish_domain: &[F]) -> Vec<F> {
+        println!("from_tree L010");
         let tree = self.subtree_with_size(vanish_domain.len() * 2);
-        tree.vanish_impl(vanish_domain)
+        println!("from_tree L011");
+        let res = tree.vanish_impl(vanish_domain);
+        println!("from_tree L012");
+        res
     }
 
     fn from_tree(f: BinaryTree<F>, rational_maps: Vec<RationalMap<F>>) -> Self {
@@ -418,7 +422,9 @@ impl<F: Field> FFTree<F> {
                 tree.z0_s1 = zip(st_z0_s1, st_z1_s1).map(|(z0, z1)| z0 * z1).collect();
 
                 // compute z1_s in O(n log^2 n) - .vanish() uses z0_s1
+                println!("from_tree L01");
                 let z1_s = tree.vanish(&s1);
+                println!("from_tree L02");
                 tree.z1_s0 = z1_s.into_iter().step_by(2).collect();
             }
             Ordering::Equal => {
