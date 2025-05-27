@@ -400,6 +400,7 @@ impl<F: Field> FFTree<F> {
         // TODO: this code is a little brittle, might be nice to find a cleaner solution
         match n.cmp(&2) {
             Ordering::Greater => {
+                println!("from_tree L0");
                 // compute z0_s1 in O(n log n) using the subtree's vanishing polynomials
                 let zero = F::zero();
                 let st = tree.subtree.as_ref().unwrap();
@@ -420,6 +421,7 @@ impl<F: Field> FFTree<F> {
             }
             Ordering::Less => {}
         }
+        println!("from_tree M");
 
         tree.z0_inv_s1 = tree.z0_s1.clone();
         tree.z1_inv_s0 = tree.z1_s0.clone();
@@ -433,6 +435,7 @@ impl<F: Field> FFTree<F> {
         // Might be nice for a O(log n) verifier vanishing polynomial evaluation.
         match n.cmp(&2) {
             Ordering::Greater => {
+                println!("from_tree N0");
                 // compute z0z0_rem_xnn_s in O(n log n)
                 let st = tree.subtree.as_ref().unwrap();
                 let z0_rem_xnnnn_sq_s0 = zip(&st.z0z0_rem_xnn_s, &st.z1z1_rem_xnn_s)
@@ -475,6 +478,7 @@ impl<F: Field> FFTree<F> {
             }
             Ordering::Less => {}
         }
+        println!("from_tree O");
 
         tree
     }
