@@ -296,6 +296,25 @@ impl<F: Field> FFTree<F> {
         tree.modular_reduce_impl(evals, a, c)
     }
 
+    // fn vanish_impl(&self, vanish_domain: &[F]) -> Vec<F> {
+    //     let n = vanish_domain.len();
+    //     if n == 1 {
+    //         let l = self.f.leaves();
+    //         assert_eq!(2, l.len());
+    //         let alpha = vanish_domain[0];
+    //         return vec![alpha - l[0], alpha - l[1]];
+    //     }
+
+    //     let subtree = self.subtree().unwrap();
+    //     let qp = subtree.vanish_impl(&vanish_domain[0..n / 2]);
+    //     let qpp = subtree.vanish_impl(&vanish_domain[n / 2..n]);
+    //     let q_s0: Vec<F> = zip(qp, qpp).map(|(qp, qpp)| qp * qpp).collect();
+    //     let q_s1 = self.mextend(&q_s0, Moiety::S1);
+    //     zip(q_s0, q_s1)
+    //         .flat_map(|(q_s0, q_s1)| [q_s0, q_s1])
+    //         .collect()
+    // }
+
     fn vanish_impl(&self, vanish_domain: &[F]) -> Vec<F> {
         let n = vanish_domain.len();
         if n == 1 {
@@ -304,16 +323,31 @@ impl<F: Field> FFTree<F> {
             let alpha = vanish_domain[0];
             return vec![alpha - l[0], alpha - l[1]];
         }
-
+        
         let subtree = self.subtree().unwrap();
-        let qp = subtree.vanish_impl(&vanish_domain[0..n / 2]);
-        let qpp = subtree.vanish_impl(&vanish_domain[n / 2..n]);
-        let q_s0: Vec<F> = zip(qp, qpp).map(|(qp, qpp)| qp * qpp).collect();
+        
+        // Parallel recursive calls using rayon::join
+        let (qp, qpp) = rayon::join(
+            || subtree.vanish_impl(&vanish_domain[0..n / 2]),
+            || subtree.vanish_impl(&vanish_domain[n / 2..n]),
+        );
+        
+        // Parallel element-wise multiplication
+        let q_s0: Vec<F> = qp
+            .par_iter()
+            .zip(qpp.par_iter())
+            .map(|(qp, qpp)| *qp * *qpp)
+            .collect();
+        
         let q_s1 = self.mextend(&q_s0, Moiety::S1);
-        zip(q_s0, q_s1)
-            .flat_map(|(q_s0, q_s1)| [q_s0, q_s1])
+        
+        // Parallel interleaving
+        q_s0.par_iter()
+            .zip(q_s1.par_iter())
+            .flat_map(|(q_s0, q_s1)| [*q_s0, *q_s1])
             .collect()
     }
+
 
     /// Returns an evaluation of the vanishing polynomial `Z(x) = ∏ (x - a_i)`
     /// Runtime `O(n log^2 n)`. `vanishi_domain = [a_0, a_1, ..., a_(n - 1)]`
