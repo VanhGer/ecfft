@@ -16,6 +16,8 @@ use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 use core::cmp::Ordering;
 use core::iter::zip;
+use rayon::prelude::*;
+
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Moiety {
@@ -365,17 +367,22 @@ impl<F: Field> FFTree<F> {
             if d == 1 {
                 continue;
             }
-
             println!("from_tree J_");
             let v = &map.denominator;
-            for (i, (rmat, dmat)) in zip(recombine_layer, decompose_layer).enumerate() {
-                let s0 = l[i];
-                let s1 = l[i + d];
-                let v0 = v.evaluate(&s0).pow([(d / 2 - 1) as u64]);
-                let v1 = v.evaluate(&s1).pow([(d / 2 - 1) as u64]);
-                *rmat = Mat2x2([[v0, s0 * v0], [v1, s1 * v1]]);
-                *dmat = rmat.inverse().unwrap();
-            }
+            
+            // Parallelized version using par_iter_mut with zip and enumerate
+            recombine_layer
+                .par_iter_mut()
+                .zip(decompose_layer.par_iter_mut())
+                .enumerate()
+                .for_each(|(i, (rmat, dmat))| {
+                    let s0 = l[i];
+                    let s1 = l[i + d];
+                    let v0 = v.evaluate(&s0).pow([(d / 2 - 1) as u64]);
+                    let v1 = v.evaluate(&s1).pow([(d / 2 - 1) as u64]);
+                    *rmat = Mat2x2([[v0, s0 * v0], [v1, s1 * v1]]);
+                    *dmat = rmat.inverse().unwrap();
+                });
         }
         println!("from_tree K");
 
@@ -435,7 +442,7 @@ impl<F: Field> FFTree<F> {
         // Might be nice for a O(log n) verifier vanishing polynomial evaluation.
         match n.cmp(&2) {
             Ordering::Greater => {
-                println!("from_tree N0");
+                println!("from_tree N00");
                 // compute z0z0_rem_xnn_s in O(n log n)
                 let st = tree.subtree.as_ref().unwrap();
                 let z0_rem_xnnnn_sq_s0 = zip(&st.z0z0_rem_xnn_s, &st.z1z1_rem_xnn_s)
@@ -443,6 +450,7 @@ impl<F: Field> FFTree<F> {
                     .collect::<Vec<F>>();
                 let z0z0_rem_xnnnn_s0 =
                     st.modular_reduce(&z0_rem_xnnnn_sq_s0, &st.xnn_s, &st.z0z0_rem_xnn_s);
+                println!("from_tree N01");
                 let z0z0_rem_xnnnn_s1 = tree.extend(&z0z0_rem_xnnnn_s0, Moiety::S1);
                 let z0z0_rem_xnnnn_s = zip(z0z0_rem_xnnnn_s0, z0z0_rem_xnnnn_s1)
                     .flat_map(|(y0, y1)| [y0, y1])
@@ -450,6 +458,7 @@ impl<F: Field> FFTree<F> {
                 let z0_s = tree.z0_s1.iter().flat_map(|&y1| [F::zero(), y1]);
                 let z0_rem_xnn_s = zip(z0_s, &tree.xnn_s).map(|(z0, xnn)| z0 - xnn);
                 let z0_rem_xnn_sq_s = z0_rem_xnn_s.map(|y| y.square()).collect::<Vec<F>>();
+                println!("from_tree N02");
                 let z0_rem_xnn_sq_div_xnnnn_s =
                     zip(&z0_rem_xnn_sq_s, zip(&z0z0_rem_xnnnn_s, &xnnnn_s_inv))
                         .map(|(z0_rem_xnn_sq, (z0z0_rem_xnnnn, xnnnn_inv))| {
@@ -458,6 +467,7 @@ impl<F: Field> FFTree<F> {
                         .collect::<Vec<F>>();
                 let z0z0_div_xnnnn_rem_xnnnn_s =
                     tree.modular_reduce(&z0_rem_xnn_sq_div_xnnnn_s, &xnnnn_s, &z0z0_rem_xnnnn_s);
+                println!("from_tree N03");
                 tree.z0z0_rem_xnn_s =
                     zip(z0z0_rem_xnnnn_s, zip(z0z0_div_xnnnn_rem_xnnnn_s, xnnnn_s))
                         .map(|(z0z0_rem_xnnnn, (z0z0_div_xnnnn_rem_xnnnn, xnnnn))| {
@@ -470,6 +480,7 @@ impl<F: Field> FFTree<F> {
                 let z1_rem_xnn_s = zip(z1_s, &tree.xnn_s).map(|(z1, xnn)| z1 - xnn);
                 let z1z1 = z1_rem_xnn_s.map(|y| y.square()).collect::<Vec<F>>();
                 tree.z1z1_rem_xnn_s = tree.modular_reduce(&z1z1, &tree.xnn_s, &tree.z0z0_rem_xnn_s);
+                println!("from_tree N04");
             }
             Ordering::Equal => {
                 // base cases
