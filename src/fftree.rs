@@ -82,55 +82,60 @@ impl<F: Field> FFTree<F> {
         if n == 1 {
             return evals.to_vec();
         }
-
+        
         let layer = (self.f.num_layers() - 2 - n.ilog2()) as usize;
-
-        // π_0 and π_1
-        let mut evals0 = vec![F::zero(); n / 2];
-        let mut evals1 = vec![F::zero(); n / 2];
-        for (i, m) in self
-            .decompose_matrices
-            .get_layer(layer)
-            .iter()
-            .skip(match moiety {
-                Moiety::S0 => 1,
-                Moiety::S1 => 0,
+        let skip_offset = match moiety {
+            Moiety::S0 => 1,
+            Moiety::S1 => 0,
+        };
+        
+        // π_0 and π_1 - Parallel decomposition using indices
+        let half_n = n / 2;
+        let (evals0, evals1): (Vec<F>, Vec<F>) = (0..half_n)
+            .into_par_iter()
+            .map(|i| {
+                let matrix_idx = skip_offset + i * 2;
+                let m = &self.decompose_matrices.get_layer(layer)[matrix_idx];
+                let [v0, v1] = m * &[evals[i], evals[i + half_n]];
+                (v0, v1)
             })
-            .step_by(2)
-            .enumerate()
-        {
-            let [v0, v1] = m * &[evals[i], evals[i + n / 2]];
-            evals0[i] = v0;
-            evals1[i] = v1;
-        }
-
-        // π_0' and π_1'
-        let evals0_prime = self.extend_impl(&evals0, moiety);
-        let evals1_prime = self.extend_impl(&evals1, moiety);
-
+            .unzip();
+        
+        // π_0' and π_1' - Parallel recursive calls
+        let (evals0_prime, evals1_prime) = rayon::join(
+            || self.extend_impl(&evals0, moiety),
+            || self.extend_impl(&evals1, moiety),
+        );
+        
+        // Recombination - Parallel using indices
+        let recombine_skip = match moiety {
+            Moiety::S0 => 0,
+            Moiety::S1 => 1,
+        };
+        
+        let recombine_results: Vec<_> = (0..half_n)
+            .into_par_iter()
+            .map(|i| {
+                let matrix_idx = recombine_skip + i * 2;
+                let m = &self.recombine_matrices.get_layer(layer)[matrix_idx];
+                let [v0, v1] = m * &[evals0_prime[i], evals1_prime[i]];
+                (i, v0, v1)
+            })
+            .collect();
+        
         let mut res = vec![F::zero(); n];
-        for (i, m) in self
-            .recombine_matrices
-            .get_layer(layer)
-            .iter()
-            .skip(match moiety {
-                Moiety::S0 => 0,
-                Moiety::S1 => 1,
-            })
-            .step_by(2)
-            .enumerate()
-        {
-            let [v0, v1] = m * &[evals0_prime[i], evals1_prime[i]];
+        for (i, v0, v1) in recombine_results {
             res[i] = v0;
-            res[i + n / 2] = v1;
+            res[i + half_n] = v1;
         }
+        
         res
     }
 
     /// Extends evals on the chosen moiety
     pub fn extend(&self, evals: &[F], moiety: Moiety) -> Vec<F> {
         let tree = self.subtree_with_size(evals.len() * 2);
-        tree.extend_impl(evals, moiety)
+        tree.extend_impl(evals, moiety) // Use the most efficient version
     }
 
     fn mextend_impl(&self, evals: &[F], moiety: Moiety) -> Vec<F> {
@@ -449,8 +454,8 @@ impl<F: Field> FFTree<F> {
                 // compute z0_s1 in O(n log n) using the subtree's vanishing polynomials
                 let zero = F::zero();
                 let st = tree.subtree.as_ref().unwrap();
-                let st_z0_s0: Vec<F> = st.z0_s1.iter().flat_map(|&y| [zero, y]).collect();
-                let st_z1_s0: Vec<F> = st.z1_s0.iter().flat_map(|&y| [y, zero]).collect();
+                let st_z0_s0: Vec<F> = st.z0_s1.par_iter().flat_map(|&y| [zero, y]).collect();
+                let st_z1_s0: Vec<F> = st.z1_s0.par_iter().flat_map(|&y| [y, zero]).collect();
                 let st_z0_s1 = tree.extend(&st_z0_s0, Moiety::S1);
                 let st_z1_s1 = tree.extend(&st_z1_s0, Moiety::S1);
                 tree.z0_s1 = zip(st_z0_s1, st_z1_s1).map(|(z0, z1)| z0 * z1).collect();
