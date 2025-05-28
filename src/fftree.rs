@@ -377,11 +377,9 @@ impl<F: Field> FFTree<F> {
         let xnn_s: Vec<F> = f_layers[0].par_iter().map(|x| x.pow([nn])).collect();
         let mut xnn_s_inv = xnn_s.clone();
         batch_inversion(&mut xnn_s_inv);
-        println!("from_tree G");
 
         // Split S into its two moieties S0 and S1
         let (s0, s1): (Vec<F>, Vec<F>) = s.chunks_exact(2).map(|s| (s[0], s[1])).unzip();
-        println!("from_tree H");
 
         // Generate polynomial decomposition matrices
         // Lemma 3.2 (M_t) https://arxiv.org/abs/2107.08473
@@ -414,7 +412,6 @@ impl<F: Field> FFTree<F> {
                     *dmat = rmat.inverse().unwrap();
                 });
         }
-        println!("from_tree K");
 
         let mut tree = Self {
             f,
@@ -457,7 +454,6 @@ impl<F: Field> FFTree<F> {
             }
             Ordering::Less => {}
         }
-        println!("from_tree M");
 
         tree.z0_inv_s1 = tree.z0_s1.clone();
         tree.z1_inv_s0 = tree.z1_s0.clone();
@@ -556,7 +552,6 @@ impl<F: Field> FFTree<F> {
             }
             Ordering::Less => {}
         }
-        println!("from_tree O");
 
         tree
     }
