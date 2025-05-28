@@ -56,7 +56,6 @@ impl<F: Field> FFTree<F> {
 
         // generate internal nodes
         // TODO: would be cool to use array_windows_mut
-        println!("new A");
         let mut f_layers = f.get_layers_mut();
         for (i, rational_map) in rational_maps.iter().enumerate() {
             let (prev_layer, layer) = {
@@ -71,7 +70,6 @@ impl<F: Field> FFTree<F> {
                 debug_assert_eq!(*s, rational_map.map(&prev_layer[j + layer_size]).unwrap());
             });
         }
-        println!("new B");
 
         Self::from_tree(f, rational_maps)
     }
