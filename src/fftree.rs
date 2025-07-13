@@ -74,6 +74,37 @@ impl<F: Field> FFTree<F> {
         Self::from_tree(f, rational_maps)
     }
 
+    pub fn new_small(leaves: Vec<F>, rational_maps: Vec<RationalMap<F>>) -> Self {
+        let n = leaves.len();
+        assert!(n.is_power_of_two());
+        let log_n = n.ilog2();
+        assert_eq!(log_n, rational_maps.len() as u32);
+        let n = 1 << log_n;
+
+        // copy leaf nodes
+        let mut f = BinaryTree::from(vec![F::zero(); 2 * n]);
+        f[n..].copy_from_slice(&leaves);
+
+        // generate internal nodes
+        // TODO: would be cool to use array_windows_mut
+        let mut f_layers = f.get_layers_mut();
+        for (i, rational_map) in rational_maps.iter().enumerate() {
+            let (prev_layer, layer) = {
+                let (prev_layers, layers) = f_layers.split_at_mut(i + 1);
+                (prev_layers.last_mut().unwrap(), layers.first_mut().unwrap())
+            };
+            let layer_size = layer.len();
+
+            // Parallelized version using par_iter_mut with enumerate
+            layer.par_iter_mut().enumerate().for_each(|(j, s)| {
+                *s = rational_map.map(&prev_layer[j]).unwrap();
+                debug_assert_eq!(*s, rational_map.map(&prev_layer[j + layer_size]).unwrap());
+            });
+        }
+
+        Self::from_small_tree(f, rational_maps)
+    }
+
     fn extend_impl(&self, evals: &[F], moiety: Moiety) -> Vec<F> {
         let n = evals.len();
         if n == 1 {
@@ -554,6 +585,61 @@ impl<F: Field> FFTree<F> {
         tree
     }
 
+    fn from_small_tree(f: BinaryTree<F>, rational_maps: Vec<RationalMap<F>>) -> Self {
+        let f_layers = f.get_layers();
+        let n = f.leaves().len();
+
+        // Generate polynomial decomposition matrices
+        // Lemma 3.2 (M_t) https://arxiv.org/abs/2107.08473
+        // TODO: change notation
+        let mut recombine_matrices = BinaryTree::from(vec![Mat2x2::identity(); n]);
+        let mut decompose_matrices = BinaryTree::from(vec![Mat2x2::identity(); n]);
+        let recombine_layers = recombine_matrices.get_layers_mut();
+        let decompose_layers = decompose_matrices.get_layers_mut();
+        for ((recombine_layer, decompose_layer), (l, map)) in zip(
+            zip(recombine_layers, decompose_layers),
+            zip(f_layers, &rational_maps),
+        ) {
+            let d = l.len() / 2;
+            if d == 1 {
+                continue;
+            }
+            let v = &map.denominator;
+
+            // Parallelized version using par_iter_mut with zip and enumerate
+            recombine_layer
+                .par_iter_mut()
+                .zip(decompose_layer.par_iter_mut())
+                .enumerate()
+                .for_each(|(i, (rmat, dmat))| {
+                    let s0 = l[i];
+                    let s1 = l[i + d];
+                    let v0 = v.evaluate(&s0).pow([(d / 2 - 1) as u64]);
+                    let v1 = v.evaluate(&s1).pow([(d / 2 - 1) as u64]);
+                    *rmat = Mat2x2([[v0, s0 * v0], [v1, s1 * v1]]);
+                    *dmat = rmat.inverse().unwrap();
+                });
+        }
+
+        let tree = Self {
+            f,
+            recombine_matrices,
+            decompose_matrices,
+            rational_maps: vec![],
+            subtree: None,
+            xnn_s: Vec::new(),
+            xnn_s_inv: Vec::new(),
+            z0_s1: Vec::new(),
+            z1_s0: Vec::new(),
+            z1_inv_s0: Vec::new(),
+            z0_inv_s1: Vec::new(),
+            z0z0_rem_xnn_s: Vec::new(),
+            z1z1_rem_xnn_s: Vec::new(),
+        };
+        tree
+    }
+
+    
     fn derive_subtree(f: &BinaryTree<F>, rational_maps: &[RationalMap<F>]) -> Option<Self> {
         let n = f.leaves().len() / 2;
         if n == 0 {
